@@ -25,129 +25,83 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showDownloadDialog(BuildContext context, ChatProvider provider) {
-    String searchQuery = '';
-    
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            
-            // Filter the global models based on search query
-            final displayedModels = provider.globalModels
-                .where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
-                              m.description.toLowerCase().contains(searchQuery.toLowerCase()))
-                .toList();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF252526),
+          title: const Text('Download Models', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: 400,
+            height: 400,
+            child: ListView.builder(
+              itemCount: provider.recommendedModels.length,
+              itemBuilder: (context, index) {
+                final ref = provider.recommendedModels[index];
+                
+                // Track progress live utilizing Provider inside the dialog
+                return Consumer<ChatProvider>(
+                  builder: (context, liveProvider, child) {
+                    final isDownloading = liveProvider.downloadProgress.containsKey(ref.name);
+                    final progress = liveProvider.downloadProgress[ref.name] ?? 0.0;
+                    final isInstalled = liveProvider.availableModels.contains(ref.name);
 
-            return AlertDialog(
-              backgroundColor: const Color(0xFF252526),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Download Models', style: TextStyle(color: Colors.white)),
-                  const SizedBox(height: 12),
-                  TextField(
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search 50+ models...',
-                      hintStyle: const TextStyle(color: Colors.white38),
-                      prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                      filled: true,
-                      fillColor: const Color(0xFF1E1E1E),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 500, // Widened to make room for descriptions
-                height: 500,
-                child: provider.isLoadingGlobalModels
-                    ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
-                    : displayedModels.isEmpty
-                        ? const Center(child: Text('No models found for that search.', style: TextStyle(color: Colors.white54)))
-                        : ListView.builder(
-                            itemCount: displayedModels.length,
-                            itemBuilder: (context, index) {
-                              final ref = displayedModels[index];
-                              
-                              // Track progress live utilizing Provider inside the dialog
-                              return Consumer<ChatProvider>(
-                                builder: (context, liveProvider, child) {
-                                  final isDownloading = liveProvider.downloadProgress.containsKey(ref.name);
-                                  final progress = liveProvider.downloadProgress[ref.name] ?? 0.0;
-                                  final isInstalled = liveProvider.availableModels.contains(ref.name);
-
-                                  return Card(
-                                    color: const Color(0xFF1E1E1E),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Expanded(
-                                                child: Text('${ref.name.toUpperCase()}  (${ref.parameters})', 
-                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              if (isInstalled)
-                                                const Icon(Icons.check_circle, color: Colors.green)
-                                              else if (isDownloading)
-                                                SizedBox(
-                                                  height: 20, width: 20, 
-                                                  child: CircularProgressIndicator(value: progress, color: Colors.blueAccent)
-                                                )
-                                              else
-                                                ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.blueAccent,
-                                                    foregroundColor: Colors.white,
-                                                  ),
-                                                  onPressed: () {
-                                                    liveProvider.downloadModel(ref.name);
-                                                  },
-                                                  child: const Text('Download'),
-                                                )
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(ref.description, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                                          if (isDownloading) ...[
-                                            const SizedBox(height: 10),
-                                            LinearProgressIndicator(value: progress, backgroundColor: Colors.black, color: Colors.blueAccent),
-                                            const SizedBox(height: 4),
-                                            Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white54, fontSize: 12))
-                                          ]
-                                        ],
-                                      ),
+                    return Card(
+                      color: const Color(0xFF1E1E1E),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${ref.name.toUpperCase()}  (${ref.parameters})', 
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                                ),
+                                if (isInstalled)
+                                  const Icon(Icons.check_circle, color: Colors.green)
+                                else if (isDownloading)
+                                  SizedBox(
+                                    height: 20, width: 20, 
+                                    child: CircularProgressIndicator(value: progress, color: Colors.blueAccent)
+                                  )
+                                else
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent,
+                                      foregroundColor: Colors.white,
                                     ),
-                                  );
-                                }
-                              );
-                            },
-                          ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Close', style: TextStyle(color: Colors.blueAccent)),
-                ),
-              ],
-            );
-          }
+                                    onPressed: () {
+                                      liveProvider.downloadModel(ref.name);
+                                    },
+                                    child: const Text('Download'),
+                                  )
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(ref.description, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                            if (isDownloading) ...[
+                              const SizedBox(height: 10),
+                              LinearProgressIndicator(value: progress, backgroundColor: Colors.black, color: Colors.blueAccent),
+                              const SizedBox(height: 4),
+                              Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white54, fontSize: 12))
+                            ]
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close', style: TextStyle(color: Colors.blueAccent)),
+            ),
+          ],
         );
       },
     );
