@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/1/10/Ollama_logo.svg" alt="Ollama Logo" width="100"/>
+  <img src="https://raw.githubusercontent.com/jmorganca/ollama/main/docs/ollama.png" alt="Ollama Logo" width="100"/>
   <h1>Ollama Linux Desktop App</h1>
   <p><b>A natively compiled, blazing-fast GUI client for local Ollama models on Linux.</b></p>
 
