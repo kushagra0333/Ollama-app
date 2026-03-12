@@ -199,14 +199,80 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // New Chat Button
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.05),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 45),
+                          alignment: Alignment.centerLeft,
+                          elevation: 0,
+                        ),
+                        onPressed: provider.createNewChat,
+                        icon: const Icon(Icons.add),
+                        label: const Text('New Chat'),
+                      ),
+                    ),
+                    const Divider(color: Colors.black54, height: 1),
+                    
+                    // Chat History List
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: Text(
+                              'CHAT HISTORY',
+                              style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: provider.savedSessions.length,
+                              itemBuilder: (context, index) {
+                                final session = provider.savedSessions[index];
+                                final isSelected = provider.currentSessionId == session.id;
+
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    session.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : Colors.white70,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.close, size: 16, color: Colors.white54),
+                                    onPressed: () => provider.deleteSession(session.id),
+                                  ),
+                                  tileColor: isSelected ? Colors.white.withOpacity(0.1) : null,
+                                  onTap: () => provider.switchSession(session.id),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.black54),
+                    
+                    // Available Models Area
                     const Padding(
-                      padding: EdgeInsets.all(16.0),
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Text(
-                        'AVAILABLE MODELS',
+                        'CURRENT MODEL',
                         style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    Expanded(
+                    Container(
+                      height: 120, // Fixed height for models list
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       child: provider.availableModels.isEmpty
                           ? const Center(
                               child: Text('No models installed.', style: TextStyle(color: Colors.white54)),
@@ -218,22 +284,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                 final isSelected = provider.selectedModel == model;
                                 
                                 return ListTile(
+                                  dense: true,
                                   title: Text(
                                     model,
                                     style: TextStyle(
-                                      color: isSelected ? Colors.white : Colors.white70,
+                                      color: isSelected ? Colors.blueAccent : Colors.white70,
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
-                                  tileColor: isSelected ? Colors.blueAccent.withOpacity(0.2) : null,
+                                  leading: isSelected ? const Icon(Icons.check, color: Colors.blueAccent, size: 16) : const SizedBox(width: 16),
                                   onTap: () => provider.selectModel(model),
                                 );
                               },
                             ),
                     ),
-                    const Divider(color: Colors.black54),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      padding: const EdgeInsets.all(16.0),
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
@@ -243,19 +309,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         onPressed: () => _showDownloadDialog(context, provider),
                         icon: const Icon(Icons.cloud_download),
                         label: const Text('Download Models'),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent.withOpacity(0.2),
-                          foregroundColor: Colors.redAccent,
-                          minimumSize: const Size(double.infinity, 45),
-                        ),
-                        onPressed: provider.clearChat,
-                        icon: const Icon(Icons.delete_sweep),
-                        label: const Text('Clear Chat'),
                       ),
                     ),
                   ],
@@ -280,7 +333,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   Text(
                                     provider.availableModels.isEmpty 
                                       ? 'Install a model from within the Sidebar to begin.' 
-                                      : 'Select a model and start chatting!',
+                                      : 'Send a message to start a new chat history!',
                                     style: const TextStyle(color: Colors.white54, fontSize: 18),
                                   ),
                                 ],

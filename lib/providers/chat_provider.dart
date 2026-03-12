@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_message.dart';
 import '../services/ollama_service.dart';
 import '../services/system_service.dart';
@@ -15,8 +17,17 @@ class ChatProvider with ChangeNotifier {
   final OllamaService _ollamaService = OllamaService();
   final SystemService _systemService = SystemService();
 
-  List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => _messages;
+  List<ChatSession> _savedSessions = [];
+  List<ChatSession> get savedSessions => _savedSessions;
+
+  String? _currentSessionId;
+  String? get currentSessionId => _currentSessionId;
+
+  List<ChatMessage> get messages {
+    if (_currentSessionId == null) return [];
+    final session = _savedSessions.firstWhere((s) => s.id == _currentSessionId);
+    return session.messages;
+  }
 
   List<String> _models = [];
   List<String> get availableModels => _models;
@@ -36,12 +47,9 @@ class ChatProvider with ChangeNotifier {
   bool _isInstallingEngine = false;
   bool get isInstallingEngine => _isInstallingEngine;
 
-  // Downloading State Map
-  // Key: model name, Value: download fractional progress (0.0 - 1.0)
   final Map<String, double> _downloadProgress = {};
   Map<String, double> get downloadProgress => _downloadProgress;
 
-  // Predefined models for the downloader
   final List<ModelInfo> recommendedModels = [
     ModelInfo('llama3', '8B', 'Meta\'s powerful open model.'),
     ModelInfo('mistral', '7B', 'High-performance model by Mistral AI.'),
@@ -54,6 +62,8 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> _initializeData() async {
+    await _loadSessions();
+    
     _isOllamaInstalled = await _systemService.checkOllamaInstalled();
     if (!_isOllamaInstalled) {
       notifyListeners();
@@ -65,6 +75,78 @@ class ChatProvider with ChangeNotifier {
       await fetchModels();
     }
   }
+
+  // --- Chat History Management ---
+
+  Future<void> _loadSessions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sessionsJson = prefs.getStringList('chat_sessions') ?? [];
+    
+    _savedSessions = sessionsJson
+        .map((s) => ChatSession.fromJson(jsonDecode(s)))
+        .toList();
+    
+    if (_savedSessions.isEmpty) {
+      createNewChat();
+    } else {
+      _currentSessionId = _savedSessions.first.id;
+      _selectedModel = _savedSessions.first.model;
+    }
+    notifyListeners();
+  }
+
+  Future<void> _saveSessions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sessionsJson = _savedSessions.map((s) => jsonEncode(s.toJson())).toList();
+    await prefs.setStringList('chat_sessions', sessionsJson);
+  }
+
+  void createNewChat() {
+    final newSession = ChatSession(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'New Chat',
+      model: _selectedModel,
+      messages: [],
+    );
+    _savedSessions.insert(0, newSession);
+    _currentSessionId = newSession.id;
+    _saveSessions();
+    notifyListeners();
+  }
+
+  void switchSession(String id) {
+    if (_currentSessionId == id) return;
+    _currentSessionId = id;
+    final session = _savedSessions.firstWhere((s) => s.id == id);
+    if (session.model != null && _models.contains(session.model)) {
+      _selectedModel = session.model;
+    }
+    notifyListeners();
+  }
+
+  void deleteSession(String id) {
+    _savedSessions.removeWhere((s) => s.id == id);
+    if (_savedSessions.isEmpty) {
+      createNewChat();
+    } else if (_currentSessionId == id) {
+      _currentSessionId = _savedSessions.first.id;
+      _selectedModel = _savedSessions.first.model;
+    }
+    _saveSessions();
+    notifyListeners();
+  }
+
+  void _updateSessionTitleAndModel(String firstMessage) {
+    if (_currentSessionId == null) return;
+    final session = _savedSessions.firstWhere((s) => s.id == _currentSessionId);
+    if (session.messages.length <= 2) { // First message
+      session.title = firstMessage.length > 30 ? '\${firstMessage.substring(0, 30)}...' : firstMessage;
+    }
+    session.model = _selectedModel;
+    _saveSessions();
+  }
+
+  // --- End Chat History Management ---
 
   Future<void> installOllamaEngine() async {
     _isInstallingEngine = true;
@@ -99,7 +181,6 @@ class ChatProvider with ChangeNotifier {
         notifyListeners();
       }
       
-      // Successfully downloaded
       _downloadProgress.remove(modelName);
       await fetchModels();
       if (_selectedModel == null) selectModel(modelName);
@@ -126,24 +207,27 @@ class ChatProvider with ChangeNotifier {
   void selectModel(String model) {
     if (_models.contains(model)) {
       _selectedModel = model;
+      if (_currentSessionId != null) {
+        final session = _savedSessions.firstWhere((s) => s.id == _currentSessionId);
+        session.model = model;
+        _saveSessions();
+      }
       notifyListeners();
     }
   }
 
-  void clearChat() {
-    _messages.clear();
-    notifyListeners();
-  }
-
   Future<void> sendMessage(String text) async {
-    if (text.trim().isEmpty || _selectedModel == null || _isGenerating) return;
+    if (text.trim().isEmpty || _selectedModel == null || _isGenerating || _currentSessionId == null) return;
 
-    _messages.add(ChatMessage(text: text, isUser: true));
+    final session = _savedSessions.firstWhere((s) => s.id == _currentSessionId);
+
+    session.messages.add(ChatMessage(text: text, isUser: true));
     
-    final aiMessageIndex = _messages.length;
-    _messages.add(ChatMessage(text: '', isUser: false));
+    final aiMessageIndex = session.messages.length;
+    session.messages.add(ChatMessage(text: '', isUser: false));
     
     _isGenerating = true;
+    _updateSessionTitleAndModel(text);
     notifyListeners();
 
     try {
@@ -151,18 +235,27 @@ class ChatProvider with ChangeNotifier {
       
       String responseText = '';
       await for (final chunk in stream) {
+        // If the user rapidly switches chats mid-generation, stop updating this specific message in UI
+        if (_currentSessionId != session.id) continue;
+        
         responseText += chunk;
-        _messages[aiMessageIndex] = ChatMessage(text: responseText, isUser: false);
+        session.messages[aiMessageIndex] = ChatMessage(text: responseText, isUser: false);
         notifyListeners();
       }
+      // Save full message to disk once done
+      _saveSessions();
     } catch (e) {
-      _messages[aiMessageIndex] = ChatMessage(
-        text: 'Error connecting to Ollama: $e', 
-        isUser: false
-      );
+      if (_currentSessionId == session.id) {
+        session.messages[aiMessageIndex] = ChatMessage(
+          text: 'Error connecting to Ollama: $e', 
+          isUser: false
+        );
+      }
     } finally {
-      _isGenerating = false;
-      notifyListeners();
+      if (_currentSessionId == session.id) {
+        _isGenerating = false;
+        notifyListeners();
+      }
     }
   }
 }
