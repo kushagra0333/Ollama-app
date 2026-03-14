@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/chat_message.dart';
 import '../services/ollama_service.dart';
 
@@ -12,6 +14,8 @@ class VoiceCompanionProvider with ChangeNotifier {
   
   stt.SpeechToText _speech = stt.SpeechToText();
   FlutterTts _flutterTts = FlutterTts();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String _linuxAudioPath = '';
 
   bool _isListening = false;
   bool get isListening => _isListening;
@@ -22,6 +26,9 @@ class VoiceCompanionProvider with ChangeNotifier {
   bool _isThinking = false;
   bool get isThinking => _isThinking;
 
+  // Added a specific override for true cross-platform capability with Python fallback
+  bool get isSupported => true;
+
   String _currentVoiceInput = '';
   String get currentVoiceInput => _currentVoiceInput;
 
@@ -30,8 +37,6 @@ class VoiceCompanionProvider with ChangeNotifier {
 
   String? _selectedModel;
   String? get selectedModel => _selectedModel;
-
-  bool get isSupported => !Platform.isLinux;
 
   VoiceCompanionProvider() {
     _initialize();
@@ -99,12 +104,9 @@ class VoiceCompanionProvider with ChangeNotifier {
   }
 
   Future<void> toggleListening() async {
-    if (!isSupported) {
-      _voiceMessages.add(ChatMessage(
-          text: "Voice commands and Text-to-Speech are not natively supported on Linux desktop in this build.",
-          isUser: false));
-      notifyListeners();
-      return;
+    if (Platform.isLinux) {
+       await _toggleListeningLinux();
+       return;
     }
 
     if (_isListening) {
@@ -153,6 +155,59 @@ class VoiceCompanionProvider with ChangeNotifier {
     }
   }
 
+  Future<void> _toggleListeningLinux() async {
+    if (_isListening) {
+      // Stop recording
+      final path = await _audioRecorder.stop();
+      _isListening = false;
+      notifyListeners();
+      
+      if (path != null) {
+         _currentVoiceInput = "Transcribing...";
+         notifyListeners();
+         
+         // Run Python Sphinx Script
+         try {
+            final result = await Process.run('python3', ['linux_stt.py', path]);
+            final transcribedText = result.stdout.toString().trim();
+            
+            if (transcribedText.isNotEmpty) {
+               _handleUserInput(transcribedText);
+            } else {
+               _currentVoiceInput = '';
+               notifyListeners();
+            }
+         } catch (e) {
+            print("Python STT Error: \$e");
+            _currentVoiceInput = '';
+            notifyListeners();
+         }
+      }
+    } else {
+      // Stop TTS if speaking natively
+      if (_isSpeaking) {
+         // Linux espeak processes are fired-and-forget, but we could track PID to kill it
+         _isSpeaking = false;
+         notifyListeners();
+      }
+
+      final hasPermission = await _audioRecorder.hasPermission();
+      if (hasPermission) {
+         final dir = await getTemporaryDirectory();
+         _linuxAudioPath = "\${dir.path}/command.wav";
+         
+         await _audioRecorder.start(
+            const RecordConfig(encoder: AudioEncoder.wav),
+            path: _linuxAudioPath
+         );
+         
+         _isListening = true;
+         _currentVoiceInput = '';
+         notifyListeners();
+      }
+    }
+  }
+
   Future<void> _handleUserInput(String input) async {
     if (input.trim().isEmpty || _selectedModel == null) return;
     
@@ -188,10 +243,14 @@ class VoiceCompanionProvider with ChangeNotifier {
         notifyListeners();
 
         // Very basic chunking by punctuation to read sentences fluidly while streaming
-        if (isSupported && (chunk.contains('.') || chunk.contains('!') || chunk.contains('?'))) {
+        if (chunk.contains('.') || chunk.contains('!') || chunk.contains('?')) {
           if (currentSentenceBuffer.trim().isNotEmpty) {
             try {
-              await _flutterTts.speak(currentSentenceBuffer.trim());
+              if (Platform.isLinux) {
+                 await Process.run('espeak', [currentSentenceBuffer.trim()]);
+              } else {
+                 await _flutterTts.speak(currentSentenceBuffer.trim());
+              }
             } catch (_) {}
             currentSentenceBuffer = '';
           }
@@ -199,9 +258,13 @@ class VoiceCompanionProvider with ChangeNotifier {
       }
       
       // Speak remainder
-      if (isSupported && currentSentenceBuffer.trim().isNotEmpty) {
+      if (currentSentenceBuffer.trim().isNotEmpty) {
          try {
-           await _flutterTts.speak(currentSentenceBuffer.trim());
+           if (Platform.isLinux) {
+              await Process.run('espeak', [currentSentenceBuffer.trim()]);
+           } else {
+              await _flutterTts.speak(currentSentenceBuffer.trim());
+           }
          } catch (_) {}
       }
 
