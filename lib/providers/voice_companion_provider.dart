@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -30,6 +31,8 @@ class VoiceCompanionProvider with ChangeNotifier {
   String? _selectedModel;
   String? get selectedModel => _selectedModel;
 
+  bool get isSupported => !Platform.isLinux;
+
   VoiceCompanionProvider() {
     _initialize();
   }
@@ -39,19 +42,25 @@ class VoiceCompanionProvider with ChangeNotifier {
     await _loadVoiceMemory();
     
     // Initialize TTS
-    await _flutterTts.setLanguage("en-US");
-    await _flutterTts.setPitch(1.0);
-    await _flutterTts.setSpeechRate(0.5);
+    if (isSupported) {
+      try {
+        await _flutterTts.setLanguage("en-US");
+        await _flutterTts.setPitch(1.0);
+        await _flutterTts.setSpeechRate(0.5);
 
-    _flutterTts.setCompletionHandler(() {
-      _isSpeaking = false;
-      notifyListeners();
-    });
+        _flutterTts.setCompletionHandler(() {
+          _isSpeaking = false;
+          notifyListeners();
+        });
 
-    _flutterTts.setCancelHandler(() {
-      _isSpeaking = false;
-      notifyListeners();
-    });
+        _flutterTts.setCancelHandler(() {
+          _isSpeaking = false;
+          notifyListeners();
+        });
+      } catch (e) {
+        print("TTS Initialization error: $e");
+      }
+    }
     
     // Check available models from Ollama to pick a default
     try {
@@ -90,6 +99,14 @@ class VoiceCompanionProvider with ChangeNotifier {
   }
 
   Future<void> toggleListening() async {
+    if (!isSupported) {
+      _voiceMessages.add(ChatMessage(
+          text: "Voice commands and Text-to-Speech are not natively supported on Linux desktop in this build.",
+          isUser: false));
+      notifyListeners();
+      return;
+    }
+
     if (_isListening) {
       // Stop listening manually and trigger send
       await _speech.stop();
@@ -171,17 +188,21 @@ class VoiceCompanionProvider with ChangeNotifier {
         notifyListeners();
 
         // Very basic chunking by punctuation to read sentences fluidly while streaming
-        if (chunk.contains('.') || chunk.contains('!') || chunk.contains('?')) {
+        if (isSupported && (chunk.contains('.') || chunk.contains('!') || chunk.contains('?'))) {
           if (currentSentenceBuffer.trim().isNotEmpty) {
-            await _flutterTts.speak(currentSentenceBuffer.trim());
+            try {
+              await _flutterTts.speak(currentSentenceBuffer.trim());
+            } catch (_) {}
             currentSentenceBuffer = '';
           }
         }
       }
       
       // Speak remainder
-      if (currentSentenceBuffer.trim().isNotEmpty) {
-         await _flutterTts.speak(currentSentenceBuffer.trim());
+      if (isSupported && currentSentenceBuffer.trim().isNotEmpty) {
+         try {
+           await _flutterTts.speak(currentSentenceBuffer.trim());
+         } catch (_) {}
       }
 
       _saveVoiceMemory();
