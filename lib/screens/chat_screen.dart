@@ -204,7 +204,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.05),
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
                           foregroundColor: Colors.white,
                           minimumSize: const Size(double.infinity, 45),
                           alignment: Alignment.centerLeft,
@@ -251,7 +251,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     icon: const Icon(Icons.close, size: 16, color: Colors.white54),
                                     onPressed: () => provider.deleteSession(session.id),
                                   ),
-                                  tileColor: isSelected ? Colors.white.withOpacity(0.1) : null,
+                                  tileColor: isSelected ? Colors.white.withValues(alpha: 0.1) : null,
                                   onTap: () => provider.switchSession(session.id),
                                 );
                               },
