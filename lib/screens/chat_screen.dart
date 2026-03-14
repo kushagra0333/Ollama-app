@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/message_bubble.dart';
+import 'voice_companion_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -213,6 +214,26 @@ class _ChatScreenState extends State<ChatScreen> {
                         onPressed: provider.createNewChat,
                         icon: const Icon(Icons.add),
                         label: const Text('New Chat'),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
+                          foregroundColor: Colors.blueAccent,
+                          minimumSize: const Size(double.infinity, 45),
+                          alignment: Alignment.centerLeft,
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                           Navigator.push(
+                             context,
+                             MaterialPageRoute(builder: (context) => const VoiceCompanionScreen()),
+                           );
+                        },
+                        icon: const Icon(Icons.mic),
+                        label: const Text('Voice Companion'),
                       ),
                     ),
                     const Divider(color: Colors.black54, height: 1),
