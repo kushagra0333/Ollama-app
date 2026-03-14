@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 import 'dart:io';
 
 import 'providers/chat_provider.dart';
+import 'providers/voice_companion_provider.dart';
 import 'screens/chat_screen.dart';
 
 void main() async {
@@ -31,6 +32,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => VoiceCompanionProvider()),
       ],
       child: const OllamaApp(),
     ),
