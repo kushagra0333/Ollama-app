@@ -1,12 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class OllamaService {
-  final String baseUrl = 'http://127.0.0.1:11434/api';
+  String get _host => Platform.isAndroid ? '10.0.2.2' : '127.0.0.1';
+  String get baseUrl => 'http://$_host:11434/api';
 
   Future<bool> checkStatus() async {
     try {
-      final response = await http.get(Uri.parse('http://127.0.0.1:11434/'));
+      final response = await http.get(Uri.parse('http://$_host:11434/'));
       return response.statusCode == 200;
     } catch (e) {
       return false;
