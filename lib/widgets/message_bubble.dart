@@ -5,7 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
 
-  const MessageBubble({Key? key, required this.message}) : super(key: key);
+  const MessageBubble({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +39,13 @@ class MessageBubble extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: message.isUser 
-                        ? Colors.blueAccent.withOpacity(0.1) 
-                        : Colors.white.withOpacity(0.05),
+                        ? Colors.blueAccent.withValues(alpha: 0.1) 
+                        : Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: message.isUser 
-                          ? Colors.blueAccent.withOpacity(0.3) 
-                          : Colors.white.withOpacity(0.1),
+                          ? Colors.blueAccent.withValues(alpha: 0.3) 
+                          : Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
                   child: message.isUser
